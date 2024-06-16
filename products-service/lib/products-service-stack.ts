@@ -77,7 +77,7 @@ const availableProducts: Product[] = [
   },
 ]
 
-export class ProductsServiceStack extends cdk.Stack {
+export class LizaProductsServiceStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
