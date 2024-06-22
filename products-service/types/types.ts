@@ -3,5 +3,11 @@ export type Product = {
     title: string;
     description: string;
     price: number;
-    count: number;
 }
+
+export type Stock = {
+    product_id: string;
+    count: number
+}
+
+export type ProductWithStock = Product & Omit<Stock, 'product_id'>
