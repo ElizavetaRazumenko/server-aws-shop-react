@@ -20,7 +20,8 @@ export const handler = async (event: APIGatewayProxyEvent) => {
     }
   }
 
-  const bucket = process.env.bucket_name!;
+  const bucket = process.env.BUCKET || "";
+
 
   const putObjectCommand = new PutObjectCommand({
     Bucket: bucket,
@@ -38,7 +39,6 @@ export const handler = async (event: APIGatewayProxyEvent) => {
       statusCode: 200,
       headers: {
         ...getHeaders(),
-        'Access-Control-Allow-Methods': 'GET, POST',
       },
       body: JSON.stringify({
         url: signedURL
@@ -53,7 +53,7 @@ export const handler = async (event: APIGatewayProxyEvent) => {
         ...getHeaders(),
       },
       body: JSON.stringify({
-        message: 'Signed URL creation failed', error
+        message: 'Operation  failed', error
       })
     }
   }
