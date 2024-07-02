@@ -3,7 +3,6 @@ import {
   GetObjectCommand,
   CopyObjectCommand,
   DeleteObjectCommand,
-  S3Client,
 } from "@aws-sdk/client-s3";
 import { handler } from "../lambda/importFileParser";
 

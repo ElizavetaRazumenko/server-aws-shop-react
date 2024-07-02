@@ -35,7 +35,7 @@ export class ImportServiceStackLiza extends cdk.Stack {
       "LizaImportFileParserLambda ",
       {
         runtime: lambda.Runtime.NODEJS_20_X,
-        handler: "importProductsFile.handler",
+        handler: "importFileParser.handler",
         code: lambda.Code.fromAsset('lambda'),
         environment: {
           BUCKET: bucket.bucketName,

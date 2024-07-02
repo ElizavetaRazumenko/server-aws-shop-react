@@ -8,47 +8,69 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 
+
+const client = new S3Client();
+
 export const handler = async (event: S3Event) => {
-  console.log('importFileParser handler on work, the event', JSON.stringify(event, null, 2));
+  console.log('importFileParser handler, the event', event);
+
+  const bucket = event.Records[0].s3.bucket.name;
+  const fileName = event.Records[0].s3.object.key;
+
+  console.log(`Bucket: ${bucket}, FileName: ${fileName}`);
 
   try {
-    const client = new S3Client();
-
-    const bucket = event.Records[0].s3.bucket.name;
-    const fileName = event.Records[0].s3.object.key;
-
     const getCommand = new GetObjectCommand({
       Bucket: bucket,
       Key: fileName,
     });
 
-    const response = await client.send(getCommand);
+    const key = fileName.replace("uploaded/", "parsed/");
+    console.log(`Parsed Key: ${key}`);
 
-    const parsed: Record<string, string>[] = [];
+    console.log('Sending GetObjectCommand');
+    const response = await client.send(getCommand);
+    console.log('GetObjectCommand Response:', response);
+
+    const parsedData: Record<string, string>[] = [];
 
     if (response.Body instanceof stream.Readable) {
+      console.log('Processing stream');
       response.Body.pipe(csv())
-        .on("data", (data: Record<string, string>) => parsed.push(data))
+        .on("data", (data: Record<string, string>) => parsedData.push(data))
         .on("end", () => {
-          console.log("The parsed CSV:", parsed);
+          console.log("The parsed CSV:", parsedData);
         });
     } else {
       throw new Error("Not a readable stream");
     }
 
+
     const copyCommand = new CopyObjectCommand({
       Bucket: bucket,
       CopySource: `${bucket}/${fileName}`,
-      Key: fileName.replace("uploaded/", "parsed/"),
+      Key: key,
     });
 
     const deleteCommand = new DeleteObjectCommand({
       Bucket: bucket,
       Key: fileName,
     });
+ 
 
-    await client.send(copyCommand);
-    await client.send(deleteCommand);
+    try {
+      console.log('Sending CopyObjectCommand');
+      await client.send(copyCommand);
+      console.log('CopyObjectCommand successful');
+
+      console.log('Sending DeleteObjectCommand');
+      await client.send(deleteCommand);
+      console.log('DeleteObjectCommand successful');
+
+      console.log('The parsing and transfer operation was successful');
+    } catch (error) {
+      console.error("Error in Copy/Delete operations", error);
+    }
 
     console.log(
       'The parsing and transfer operation was successful'
