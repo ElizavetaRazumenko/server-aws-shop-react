@@ -7,9 +7,12 @@ import {
   GetObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 
 
 const client = new S3Client();
+const sqsClient = new SQSClient({});
+const SQS_URL = process.env.SQS_URL ?? "";
 
 export const handler = async (event: S3Event) => {
   console.log('importFileParser handler, the event', event);
@@ -37,7 +40,14 @@ export const handler = async (event: S3Event) => {
     if (response.Body instanceof stream.Readable) {
       console.log('Processing stream');
       response.Body.pipe(csv())
-        .on("data", (data: Record<string, string>) => parsedData.push(data))
+        .on("data", async (data: Record<string, string>) => {
+          parsedData.push(data);
+
+          await sqsClient.send(new SendMessageCommand({
+            QueueUrl: SQS_URL,
+            MessageBody: JSON.stringify(data),
+          }));
+        })
         .on("end", () => {
           console.log("The parsed CSV:", parsedData);
         });

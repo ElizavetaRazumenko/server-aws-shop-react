@@ -6,6 +6,7 @@ import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as iam from '@aws-cdk/aws-iam';
 import { Construct } from 'constructs';
 import * as s3notifications from "aws-cdk-lib/aws-s3-notifications";
+import * as sqs from "aws-cdk-lib/aws-sqs";
 
 dotenv.config();
 
@@ -14,6 +15,7 @@ export class ImportServiceStackLiza extends cdk.Stack {
     super(scope, id, props);
 
     const bucketName = process.env.BUCKET || "";
+    const SQS_ARN = process.env.SQS_ARN ?? "";
 
     const bucket = s3.Bucket.fromBucketName(
       this,
@@ -21,13 +23,22 @@ export class ImportServiceStackLiza extends cdk.Stack {
       bucketName
     );
 
+    const catalogItemsQueue = sqs.Queue.fromQueueArn(
+      this,
+      "CatalogItemsQueueLiza",
+      SQS_ARN
+    );
+
+    const lambdasEnvironment = {
+      BUCKET: bucket.bucketName,
+      SQS_URL: catalogItemsQueue.queueUrl
+    }
+
     const importProductsFileLambda = new lambda.Function(this, 'LizaImportProductsFileLambda', {
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'importProductsFile.handler',
       code: lambda.Code.fromAsset('lambda'),
-      environment: {
-        BUCKET: bucket.bucketName,
-      },
+      environment: lambdasEnvironment,
     });
 
     const importFileParserLambda = new lambda.Function(
@@ -37,11 +48,11 @@ export class ImportServiceStackLiza extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_20_X,
         handler: "importFileParser.handler",
         code: lambda.Code.fromAsset('lambda'),
-        environment: {
-          BUCKET: bucket.bucketName,
-        },
+        environment: lambdasEnvironment,
       }
     );
+
+    catalogItemsQueue.grantSendMessages(importFileParserLambda);
 
     bucket.grantReadWrite(importProductsFileLambda);
     bucket.grantReadWrite(importFileParserLambda);
