@@ -11,7 +11,7 @@ export const handler = async (event: APIGatewayProxyEvent) => {
   
     console.log('Received product data: ', JSON.stringify(body, null, 2));
 
-    const {title, description, price, count} = body;
+    const { title, description, price, count } = body;
   
     const { PRODUCTS, STOCK } = process.env;
 
@@ -20,10 +20,10 @@ export const handler = async (event: APIGatewayProxyEvent) => {
         statusCode: 400,
         headers: {
           ...getHeaders(),
-          'Access-Control-Allow-Methods': "GET, POST",
+          'Access-Control-Allow-Methods': 'GET, POST',
         },
         body: JSON.stringify({
-          message: "Title, description, and price fields are required"
+          message: "Title, description and price fields are required"
         })
       };
     }
