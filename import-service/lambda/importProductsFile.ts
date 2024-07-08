@@ -3,6 +3,8 @@ import { getHeaders } from './helpers';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
+const BUCKET = process.env.BUCKET ?? "";
+
 export const handler = async (event: APIGatewayProxyEvent) => {
   console.log('importProductsFile handler on work, the event', JSON.stringify(event, null, 2));
 
@@ -19,19 +21,15 @@ export const handler = async (event: APIGatewayProxyEvent) => {
       })
     }
   }
-
-  const bucket = process.env.BUCKET || "";
-
-
-  const putObjectCommand = new PutObjectCommand({
-    Bucket: bucket,
-    Key: `uploaded/${fileName}`,
-  });
-
   const clientS3 = new S3Client({ region: 'eu-central-1' });
 
   try {
-    const signedURL = await getSignedUrl(clientS3, putObjectCommand, { expiresIn: 3600 });
+    const signedURL = await getSignedUrl(clientS3, new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: `uploaded/${fileName}`,
+    }),
+    { expiresIn: 3600 }
+  );
 
     console.log('SignedUrl created:', signedURL);
 

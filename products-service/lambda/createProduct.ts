@@ -1,19 +1,23 @@
 import { APIGatewayProxyEvent } from 'aws-lambda';
-import { DynamoDB } from 'aws-sdk';
+import { randomUUID } from 'crypto';
+import { marshall } from "@aws-sdk/util-dynamodb";
+import {
+  DynamoDB,
+  TransactWriteItemsCommand,
+} from "@aws-sdk/client-dynamodb";
 import { getHeaders } from './helpers';
-const {uuid} = require('uuidv4');
+import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 
-const dynamoDb = new DynamoDB.DocumentClient({ region: 'eu-central-1' });
+const dynamoDb = DynamoDBDocument.from(new DynamoDB({ region: 'eu-central-1' }));
+
+const { PRODUCTS, STOCK } = process.env;
 
 export const handler = async (event: APIGatewayProxyEvent) => {
   try {
+    console.log('Received product data: ', event.body);
     const body = JSON.parse(event.body!);
   
-    console.log('Received product data: ', JSON.stringify(body, null, 2));
-
     const { title, description, price, count } = body;
-  
-    const { PRODUCTS, STOCK } = process.env;
 
     if (!title || !description || !price) {
       return {
@@ -28,32 +32,32 @@ export const handler = async (event: APIGatewayProxyEvent) => {
       };
     }
 
-    const id = uuid();
+    const id = randomUUID();
 
-    await dynamoDb.transactWrite({
+    await dynamoDb.send(new TransactWriteItemsCommand({
       TransactItems: [
         {
           Put: {
-            TableName: PRODUCTS!,
-            Item: {
+            TableName: PRODUCTS || '',
+            Item: marshall({
               id,
               title,
               description,
               price
-            }
+            })
           }
         },
         {
           Put: {
-            TableName: STOCK!,
-            Item: {
+            TableName: STOCK || '',
+            Item: marshall({
               product_id: id,
               count: count || 1
-            }
+            })
           }
         }
       ]
-    }).promise();
+    }));
 
     console.log('Product are created, id: ', id);
 

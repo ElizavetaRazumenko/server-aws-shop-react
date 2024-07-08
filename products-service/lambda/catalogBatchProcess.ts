@@ -11,26 +11,27 @@ import {
 import { getHeaders } from './helpers';
 import { marshall } from "@aws-sdk/util-dynamodb";
 
+const dynamoDb = DynamoDBDocument.from(new DynamoDB({ region: 'eu-central-1' }));
+const client = new SNSClient({});
+
+const { PRODUCTS, STOCK, SNS_TOPIC_ARN } = process.env;
+
 export const handler = async (event: SQSEvent) => {
-  const { PRODUCTS, STOCK, SNS_TOPIC_ARN } = process.env;
-  const transactions: TransactWriteItem[] = [];
+  console.log('Handle event:', JSON.stringify(event, null, 2));
   const products: ProductWithStock[] = [];
+  const transactions: TransactWriteItem[] = [];
 
-
-  const client = new SNSClient({});
-
-  const db = new DynamoDB();
-  const dbDocument = DynamoDBDocument.from(db);
   try {
 
-    for (const msgs of event.Records) {
-      const body = typeof msgs.body == "object"
-      ? msgs.body
-      : JSON.parse(msgs.body)
+    for (const msg of event.Records) {
+      console.log('Processing message:', JSON.stringify(msg, null, 2));
+      const body = JSON.parse(msg.body)
 
       const { title, description, price, count } = body;
 
       if (!title || !description || !price || !count) {
+        console.error('Missing required parameters:', { title, description, price, count });
+
         return {
           statusCode: 400,
           headers: {
@@ -43,43 +44,42 @@ export const handler = async (event: SQSEvent) => {
         };
       }
 
-      const newProduct: Product = {
+      const createdProduct: Product = {
         id: randomUUID(),
         title,
         description,
         price,
       };
 
-      const newStock: Stock = {
-        product_id: newProduct.id,
+      const createdStock: Stock = {
+        product_id: createdProduct.id,
         count,
       };
 
-      products.push({ ...newProduct, count: newStock.count })
+      products.push({ ...createdProduct, count: createdStock.count })
 
-      const putProduct = {
+      transactions.push({
         Put: {
-          Item: marshall(newProduct),
-          TableName: PRODUCTS,
+          TableName: PRODUCTS ?? '',
+          Item: marshall(createdProduct),
         },
-      };
-
-      const putStock = {
+      }, 
+      {
         Put: {
-          Item: marshall(newStock),
-          TableName: STOCK,
+          TableName: STOCK ?? '',
+          Item: marshall(createdStock),
         },
-      };
+      });
 
-      transactions.push(putProduct, putStock);
+      console.log('Created product and stock:', { createdProduct, createdStock });
     }
 
-    const transactCommand = new TransactWriteItemsCommand({
+    console.log('Executing TransactWriteItemsCommand with transactions:', JSON.stringify(transactions, null, 2));
+    await dynamoDb.send(new TransactWriteItemsCommand({
       TransactItems: transactions,
-    });
+    }));
 
-    await dbDocument.send(transactCommand);
-
+    console.log('Sending SNS notification with products:', JSON.stringify(products, null, 2));
     await client.send(
       new PublishCommand({
         Subject: "Products created",
@@ -91,6 +91,8 @@ export const handler = async (event: SQSEvent) => {
         }),
       })
     );
+
+    console.log('Products successfully created and notification sent');
 
     return {
       statusCode: 201,
@@ -104,7 +106,7 @@ export const handler = async (event: SQSEvent) => {
     }
 
   } catch (e) {
-    console.log('Something went wrong:', e);
+    console.error('Error occurred:', e);
 
     return {
       statusCode: 500,
@@ -113,7 +115,7 @@ export const handler = async (event: SQSEvent) => {
         'Access-Control-Allow-Methods': 'GET',
       },
       body: JSON.stringify({ 
-        message: `Something went wrong: ${e}`
+        message: `Products creation failed: ${e}`
       }),
     }
 

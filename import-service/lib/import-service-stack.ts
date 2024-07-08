@@ -14,30 +14,30 @@ export class ImportServiceStackLiza extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    const bucketName = process.env.BUCKET || "";
+    const BUCKET = process.env.BUCKET || "";
     const SQS_ARN = process.env.SQS_ARN ?? "";
 
     const bucket = s3.Bucket.fromBucketName(
       this,
       "LizaImportServiceBucket",
-      bucketName
+      BUCKET
     );
 
-    const catalogItemsQueue = sqs.Queue.fromQueueArn(
+    const catalogQueue = sqs.Queue.fromQueueArn(
       this,
-      "CatalogItemsQueueLiza",
+      "CatalogQueueLiza",
       SQS_ARN
     );
 
     const lambdasEnvironment = {
       BUCKET: bucket.bucketName,
-      SQS_URL: catalogItemsQueue.queueUrl
+      SQS_URL: catalogQueue.queueUrl
     }
 
     const importProductsFileLambda = new lambda.Function(this, 'LizaImportProductsFileLambda', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'importProductsFile.handler',
       code: lambda.Code.fromAsset('lambda'),
+      handler: 'importProductsFile.handler',
       environment: lambdasEnvironment,
     });
 
@@ -46,17 +46,17 @@ export class ImportServiceStackLiza extends cdk.Stack {
       "LizaImportFileParserLambda ",
       {
         runtime: lambda.Runtime.NODEJS_20_X,
-        handler: "importFileParser.handler",
         code: lambda.Code.fromAsset('lambda'),
+        handler: "importFileParser.handler",
         environment: lambdasEnvironment,
       }
     );
 
-    catalogItemsQueue.grantSendMessages(importFileParserLambda);
-
     bucket.grantReadWrite(importProductsFileLambda);
     bucket.grantReadWrite(importFileParserLambda);
     bucket.grantDelete(importFileParserLambda);
+
+    catalogQueue.grantSendMessages(importFileParserLambda);
 
     bucket.addEventNotification(
       s3.EventType.OBJECT_CREATED,
@@ -73,9 +73,9 @@ export class ImportServiceStackLiza extends cdk.Stack {
       },
     });
 
-    const importProducts = api.root.addResource("import");
+    const importResource = api.root.addResource("import");
 
-    importProducts.addMethod("GET", new apigateway.LambdaIntegration(importProductsFileLambda), {
+    importResource.addMethod("GET", new apigateway.LambdaIntegration(importProductsFileLambda), {
       requestParameters: {
         "method.request.querystring.name": true,
       },
