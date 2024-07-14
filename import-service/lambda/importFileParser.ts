@@ -7,9 +7,13 @@ import {
   GetObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 
 
 const client = new S3Client();
+const sqsClient = new SQSClient({});
+
+const SQS_URL = process.env.SQS_URL ?? "";
 
 export const handler = async (event: S3Event) => {
   console.log('importFileParser handler, the event', event);
@@ -20,16 +24,14 @@ export const handler = async (event: S3Event) => {
   console.log(`Bucket: ${bucket}, FileName: ${fileName}`);
 
   try {
-    const getCommand = new GetObjectCommand({
-      Bucket: bucket,
-      Key: fileName,
-    });
-
     const key = fileName.replace("uploaded/", "parsed/");
     console.log(`Parsed Key: ${key}`);
 
     console.log('Sending GetObjectCommand');
-    const response = await client.send(getCommand);
+    const response = await client.send(new GetObjectCommand({
+      Bucket: bucket,
+      Key: fileName,
+    }));
     console.log('GetObjectCommand Response:', response);
 
     const parsedData: Record<string, string>[] = [];
@@ -37,7 +39,14 @@ export const handler = async (event: S3Event) => {
     if (response.Body instanceof stream.Readable) {
       console.log('Processing stream');
       response.Body.pipe(csv())
-        .on("data", (data: Record<string, string>) => parsedData.push(data))
+        .on("data", async (data: Record<string, string>) => {
+          parsedData.push(data);
+
+          await sqsClient.send(new SendMessageCommand({
+            QueueUrl: SQS_URL,
+            MessageBody: JSON.stringify(data),
+          }));
+        })
         .on("end", () => {
           console.log("The parsed CSV:", parsedData);
         });
@@ -45,26 +54,20 @@ export const handler = async (event: S3Event) => {
       throw new Error("Not a readable stream");
     }
 
-
-    const copyCommand = new CopyObjectCommand({
-      Bucket: bucket,
-      CopySource: `${bucket}/${fileName}`,
-      Key: key,
-    });
-
-    const deleteCommand = new DeleteObjectCommand({
-      Bucket: bucket,
-      Key: fileName,
-    });
- 
-
     try {
       console.log('Sending CopyObjectCommand');
-      await client.send(copyCommand);
+      await client.send(new CopyObjectCommand({
+        Bucket: bucket,
+        CopySource: `${bucket}/${fileName}`,
+        Key: key,
+      }));
       console.log('CopyObjectCommand successful');
 
       console.log('Sending DeleteObjectCommand');
-      await client.send(deleteCommand);
+      await client.send(new DeleteObjectCommand({
+        Bucket: bucket,
+        Key: fileName,
+      }));
       console.log('DeleteObjectCommand successful');
 
       console.log('The parsing and transfer operation was successful');

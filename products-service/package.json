@@ -22,8 +22,11 @@
     "typescript": "~5.4.5"
   },
   "dependencies": {
+    "@aws-sdk/client-sns": "^3.609.0",
+    "@aws-sdk/lib-dynamodb": "^3.610.0",
     "aws-cdk-lib": "^2.144.0",
     "constructs": "^10.3.0",
+    "dotenv": "^16.4.5",
     "source-map-support": "^0.5.21",
     "uuidv4": "^6.2.13"
   }

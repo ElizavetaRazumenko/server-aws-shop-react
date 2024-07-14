@@ -6,6 +6,7 @@ import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as iam from '@aws-cdk/aws-iam';
 import { Construct } from 'constructs';
 import * as s3notifications from "aws-cdk-lib/aws-s3-notifications";
+import * as sqs from "aws-cdk-lib/aws-sqs";
 
 dotenv.config();
 
@@ -13,21 +14,31 @@ export class ImportServiceStackLiza extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    const bucketName = process.env.BUCKET || "";
+    const BUCKET = process.env.BUCKET || "";
+    const SQS_ARN = process.env.SQS_ARN ?? "";
 
     const bucket = s3.Bucket.fromBucketName(
       this,
       "LizaImportServiceBucket",
-      bucketName
+      BUCKET
     );
+
+    const catalogQueue = sqs.Queue.fromQueueArn(
+      this,
+      "CatalogQueueLiza",
+      SQS_ARN
+    );
+
+    const lambdasEnvironment = {
+      BUCKET: bucket.bucketName,
+      SQS_URL: catalogQueue.queueUrl
+    }
 
     const importProductsFileLambda = new lambda.Function(this, 'LizaImportProductsFileLambda', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'importProductsFile.handler',
       code: lambda.Code.fromAsset('lambda'),
-      environment: {
-        BUCKET: bucket.bucketName,
-      },
+      handler: 'importProductsFile.handler',
+      environment: lambdasEnvironment,
     });
 
     const importFileParserLambda = new lambda.Function(
@@ -35,17 +46,17 @@ export class ImportServiceStackLiza extends cdk.Stack {
       "LizaImportFileParserLambda ",
       {
         runtime: lambda.Runtime.NODEJS_20_X,
-        handler: "importFileParser.handler",
         code: lambda.Code.fromAsset('lambda'),
-        environment: {
-          BUCKET: bucket.bucketName,
-        },
+        handler: "importFileParser.handler",
+        environment: lambdasEnvironment,
       }
     );
 
     bucket.grantReadWrite(importProductsFileLambda);
     bucket.grantReadWrite(importFileParserLambda);
     bucket.grantDelete(importFileParserLambda);
+
+    catalogQueue.grantSendMessages(importFileParserLambda);
 
     bucket.addEventNotification(
       s3.EventType.OBJECT_CREATED,
@@ -62,9 +73,9 @@ export class ImportServiceStackLiza extends cdk.Stack {
       },
     });
 
-    const importProducts = api.root.addResource("import");
+    const importResource = api.root.addResource("import");
 
-    importProducts.addMethod("GET", new apigateway.LambdaIntegration(importProductsFileLambda), {
+    importResource.addMethod("GET", new apigateway.LambdaIntegration(importProductsFileLambda), {
       requestParameters: {
         "method.request.querystring.name": true,
       },
