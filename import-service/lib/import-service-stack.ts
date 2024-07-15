@@ -16,6 +16,7 @@ export class ImportServiceStackLiza extends cdk.Stack {
 
     const BUCKET = process.env.BUCKET || "";
     const SQS_ARN = process.env.SQS_ARN ?? "";
+    const AUTHORIZER_LAMBDA_ARN = process.env.AUTHORIZER_LAMBDA_ARN ?? "";
 
     const bucket = s3.Bucket.fromBucketName(
       this,
@@ -52,6 +53,10 @@ export class ImportServiceStackLiza extends cdk.Stack {
       }
     );
 
+    const authorizerLambda = lambda.Function.fromFunctionAttributes(this, 'AuthorizerLambdaLiza', {
+      functionArn: AUTHORIZER_LAMBDA_ARN, sameEnvironment: true
+    });
+
     bucket.grantReadWrite(importProductsFileLambda);
     bucket.grantReadWrite(importFileParserLambda);
     bucket.grantDelete(importFileParserLambda);
@@ -73,7 +78,20 @@ export class ImportServiceStackLiza extends cdk.Stack {
       },
     });
 
+    api.addGatewayResponse("ImportServiceDefault4xx", {
+      type: apigateway.ResponseType.DEFAULT_4XX,
+      responseHeaders: {
+        "Access-Control-Allow-Origin": "'*'",
+      },
+    });
+
     const importResource = api.root.addResource("import");
+
+    const requestAuthorizer = new apigateway.RequestAuthorizer(this, "RequestAuthorizerLiza", {
+      handler: authorizerLambda,
+      identitySources: [apigateway.IdentitySource.header("Authorization")],
+      resultsCacheTtl: cdk.Duration.seconds(0),
+    });
 
     importResource.addMethod("GET", new apigateway.LambdaIntegration(importProductsFileLambda), {
       requestParameters: {
@@ -82,6 +100,8 @@ export class ImportServiceStackLiza extends cdk.Stack {
       requestValidatorOptions: {
         validateRequestParameters: true,
       },
+      authorizer: requestAuthorizer,
+      authorizationType: apigateway.AuthorizationType.CUSTOM,
     });
   }
 }

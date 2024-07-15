@@ -17,7 +17,7 @@ export class AuthorizationServiceStackLiza extends cdk.Stack {
       elizavetarazumenko,
     }
 
-    const basicAuthorizer = new lambda.Function(this, "AuthorizerHandlerLambdaLiza",
+    const authorizerLambda = new lambda.Function(this, "AuthorizerLambdaLiza",
       {
         runtime: lambda.Runtime.NODEJS_20_X,
         code: lambda.Code.fromAsset('lambda'),
