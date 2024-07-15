@@ -5,7 +5,7 @@ export const handler = async (event: APIGatewayRequestAuthorizerEvent) => {
   console.log('Event received:', JSON.stringify(event, null, 2));
 
   const auth = event.headers?.['Authorization'];
-  const token = auth?.split(' ')[2] ?? '';
+  const token = auth?.split(' ')[1] ?? '';
 
   console.log('Authorization header:', auth);
   console.log('Token:', token); 
@@ -14,7 +14,9 @@ export const handler = async (event: APIGatewayRequestAuthorizerEvent) => {
     console.log('Unauthorized request');
 
     return {
-      headers: getHeaders(),
+      headers: {
+        ...getHeaders(),
+      },
       statusCode: 401,
       body: JSON.stringify({ 
         message: 'Unauthorized'
@@ -50,7 +52,9 @@ export const handler = async (event: APIGatewayRequestAuthorizerEvent) => {
     console.error('Error occurred:', e);
 
     return {
-      headers: getHeaders(),
+      headers: {
+        ...getHeaders(),
+      },
       statusCode: 401,
       body: JSON.stringify({ 
         message:  `Unauthorized error: ${e}`
