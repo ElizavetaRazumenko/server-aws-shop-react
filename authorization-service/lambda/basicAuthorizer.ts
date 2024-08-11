@@ -23,12 +23,26 @@ export const handler = async (event: APIGatewayRequestAuthorizerEvent) => {
       }),
     };
   }
+  let username = '';
+  let password = '';
 
   try {
-    const [username, password] = Buffer.from(token, 'base64').toString('utf-8').split(':');
+    const data = Buffer.from(token, 'base64').toString('utf-8');
+    if (data.indexOf(':') !== -1) {
+      const value = Buffer.from(token, 'base64').toString('utf-8').split(':');
+      username = value[0];
+      password = value[1];
+    }
+
+    if (data.indexOf('=') !== -1) {
+      const value = Buffer.from(token, 'base64').toString('utf-8').split('=');
+      username = value[0];
+      password = value[1];
+    }
+
     console.log('Decoded username and password:', username, password);
 
-    const envPassword = process.env[username];
+    const envPassword = process.env.elizavetarazumenko;
     console.log('Environment password:', envPassword);
   
     const policyDocument = {
@@ -36,12 +50,14 @@ export const handler = async (event: APIGatewayRequestAuthorizerEvent) => {
       Statement: [
         {
           Action: 'execute-api:Invoke',
-          Effect: envPassword && password === envPassword ? 'Deny' : 'Allow',
+          Effect: password !== envPassword ? 'Deny' : 'Allow',
           Resource: event.methodArn,
         },
       ],
     }
     console.log('Policy document:', JSON.stringify(policyDocument, null, 2));
+
+    console.log('Как же заебала эта ебатория')
 
     return {
       principalId: token,
