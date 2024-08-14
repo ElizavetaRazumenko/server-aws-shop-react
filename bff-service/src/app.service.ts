@@ -16,7 +16,7 @@ export class AppService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
-  public async redirect({
+  async redirect({
     query,
     url,
     method,
@@ -31,12 +31,12 @@ export class AppService {
     body: any;
     service: Services;
   }) {
-    const serviceUrl = url.replace(
-      `/${service}/`,
-      this.configService.get(`${service.toUpperCase()}_SERVICE_URL`),
+    const serviceBaseUrl = this.configService.get(
+      `${service.toUpperCase()}_SERVICE_URL`,
     );
+
+    const serviceUrl = url.replace(`/${service}/`, serviceBaseUrl);
     const token = headers?.authorization;
-    console.log('Token: ', token);
 
     const { status, data } = await firstValueFrom(
       this.httpService
@@ -44,7 +44,7 @@ export class AppService {
           url: serviceUrl,
           method,
           params: query,
-          ...(token && headers
+          ...(headers && token
             ? {
                 headers: {
                   Authorization: token,
@@ -73,7 +73,6 @@ export class AppService {
       method === 'GET' &&
       url === '/product/products'
     ) {
-      console.log('Cache created');
       await this.cacheManager.set('products', {
         status,
         data,
